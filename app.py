@@ -15,7 +15,7 @@ import plotly.express as px
 # 1. Load Dataset
 # -----------------------
 st.title("Crime Analysis & Prediction Dashboard")
-data = pd.read_csv(r"C:\Users\csc\Desktop\Crime_BDA_Project\crime_dataset_india.csv")
+data = pd.read_csv(r"C:\Crime_Analysis_BDA\Crime_Prediction\crime_dataset_india.csv")
 st.subheader("Raw Data")
 st.dataframe(data.head())
 
@@ -56,22 +56,51 @@ st.sidebar.title("Filter Options")
 month_options = sorted(data['Month'].dropna().unique())
 default_months = month_options.copy()
 
-# City filter
-cities_selected = st.sidebar.multiselect(
-    "Select Cities", options=data['City'].unique(), default=data['City'].unique()
-)
+# -----------------------
+# City filter with "Select All"
+# -----------------------
+all_cities = sorted(data['City'].unique())
+select_all_cities = st.sidebar.checkbox("Select All Cities", value=True)
+
+if select_all_cities:
+    cities_selected = all_cities
+else:
+    cities_selected = st.sidebar.multiselect(
+        "Select Cities", options=all_cities, default=[all_cities[0]]
+    )
+
 city_codes_selected = [le_dict['City'].transform([c])[0] for c in cities_selected]
 
-# Crime domain filter
-crime_domains_selected = st.sidebar.multiselect(
-    "Select Crime Domain", options=data['Crime Domain'].unique(), default=data['Crime Domain'].unique()
-)
+# -----------------------
+# Crime domain filter with "Select All"
+# -----------------------
+all_domains = sorted(data['Crime Domain'].unique())
+select_all_domains = st.sidebar.checkbox("Select All Crime Domains", value=True)
+
+if select_all_domains:
+    crime_domains_selected = all_domains
+else:
+    crime_domains_selected = st.sidebar.multiselect(
+        "Select Crime Domain", options=all_domains, default=[all_domains[0]]
+    )
+
 crime_codes_selected = [le_dict['Crime Domain'].transform([c])[0] for c in crime_domains_selected]
 
-# Month filter
-months_selected = st.sidebar.multiselect("Select Month", options=month_options, default=default_months)
+# -----------------------
+# Month filter with "Select All"
+# -----------------------
+all_months = sorted(data['Month'].dropna().unique())
+select_all_months = st.sidebar.checkbox("Select All Months", value=True)
 
-# Filtered dataset
+if select_all_months:
+    months_selected = all_months
+else:
+    months_selected = st.sidebar.multiselect(
+        "Select Month", options=all_months, default=[all_months[0]]
+    )
+# -----------------------
+# Apply filters
+# -----------------------
 filtered_data = data[
     (data['City_encoded'].isin(city_codes_selected)) &
     (data['Crime Domain_encoded'].isin(crime_codes_selected)) &
@@ -164,6 +193,7 @@ if len(filtered_data) > 0:
     fig4 = px.line(hour_counts, x='Hour', y='Crime Domain', title="Crimes by Hour of Day")
     st.plotly_chart(fig4)
 
+
     # -----------------------
     # EXTRA VISUALIZATIONS
     # -----------------------
@@ -224,3 +254,45 @@ if len(filtered_data) > 0:
 #             st.warning("No location data available after filtering.")
 #     else:
 #         st.info("Dataset does not contain Latitude/Longitude columns. Cannot plot map.")
+
+ # -----------------------
+# 🚨 Alerts & Precautions (Bell Icon in Sidebar)
+# -----------------------
+st.sidebar.markdown("## 🔔 Notifications")
+
+if st.sidebar.button("Show Alerts"):
+    st.sidebar.subheader("🚨 Alerts & Precautions")
+
+    if len(filtered_data) > 0:
+        # 1. Highest crime city
+        city_crime_counts = filtered_data['City'].value_counts()
+        highest_city = city_crime_counts.idxmax()
+        highest_count = city_crime_counts.max()
+        st.sidebar.error(f"🔴 {highest_city} has the highest number of crimes ({highest_count})!")
+
+        # 2. Most common crime
+        if 'Crime Description' in filtered_data.columns:
+            most_common_crime = filtered_data['Crime Description'].value_counts().idxmax()
+            st.sidebar.warning(f"⚠️ Most common crime: {most_common_crime}")
+
+            # Precautionary tips (example mapping, you can expand this)
+            crime_precautions = {
+                "THEFT": "Keep valuables secure and avoid isolated areas.",
+                "ASSAULT": "Avoid late night travel alone and stay in well-lit places.",
+                "BURGLARY": "Ensure home doors/windows are locked and use security cameras.",
+                "ROBBERY": "Be cautious in crowded places and avoid displaying expensive items.",
+            }
+            if most_common_crime.upper() in crime_precautions:
+                st.sidebar.info(f"💡 Precaution: {crime_precautions[most_common_crime.upper()]}")
+
+        # 3. Trend alert (comparing current vs past months)
+        if 'Date of Occurrence' in filtered_data.columns:
+            monthly_trends = filtered_data.groupby(filtered_data['Date of Occurrence'].dt.to_period('M')).size()
+            if len(monthly_trends) > 1:
+                last, prev = monthly_trends.iloc[-1], monthly_trends.iloc[-2]
+                if last > prev * 1.5:
+                    st.sidebar.error("📈 Sharp increase in crimes compared to last month!")
+                elif last < prev * 0.7:
+                    st.sidebar.success("📉 Crimes have decreased significantly compared to last month!")
+    else:
+        st.sidebar.info("ℹ️ No data available for current filters.")
